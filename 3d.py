@@ -94,6 +94,18 @@ class Vector:
         for i, x in enumerate(v1):
             out.append(v2[i]-x)
         return tuple(out)
+
+    def add(self, v1):
+        if type(v1) != type(self):
+            raise TypeError("Argument must be of type `Vector\'")
+
+        # Unpacks
+        v1=v1.get_v()
+        v2=self.get_v()
+        out=[]
+        for i, x in enumerate(v1):
+            out.append(v2[i]+x)
+        return tuple(out)
         
     
     def dot_product(self, v1):
@@ -192,7 +204,7 @@ class Matrix:
         p=self.product(Vector(v.get_abs()))
         return v.combine_sign(p)
  
-s=0.03
+s=0.05
 c=Canvas(canvas)
 ## DOCUMENTING VIEW ORIENTATION!
 ## viewing zy plane (?), x is depth, disregard as 0
@@ -252,12 +264,12 @@ points2=[v1, v2, v3, v4, v5, v6, v7, v8]
 lines2=[t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12]
 planes2=[p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12]
 
-## Pyramid
-n=100
-w1=Vector((0+n,0+n,0+n))
-w2=Vector((50+n,0+n,50+n))
-w3=Vector((0+n, 50+n, 50+n))
-w4=Vector((50+n,50+n,0+n))
+## Tetrahedron
+n=0
+w1=Vector((0,0+n,0))
+w2=Vector((50,0+n,50))
+w3=Vector((0, 50+n, 50))
+w4=Vector((50,50+n,0))
 
 u1=Line(w1, w2)
 u2=Line(w2, w3)
@@ -271,9 +283,9 @@ q2=Plane(w1, w4, w2, "magenta")
 q3=Plane(w4, w3, w2, "yellow")
 q4=Plane(w2, w3, w1, "black")
 
-points=[w1, w2, w3, w4]+points2
-lines=[u1, u2, u3, u4, u5, u6]+lines2
-planes=[q1, q2, q3, q4]+planes2
+points=[w1, w2, w3, w4]
+lines=[u1, u2, u3, u4, u5, u6]
+planes=[q1, q2, q3, q4]
 
 ## This block generally renders out the points
 def draw(lrender):
@@ -297,21 +309,28 @@ def draw_faces(lfaces):
             p3=project.project(x.get_p3())
             c.draw_poly([p1[1], p1[2], p2[1], p2[2], p3[1], p3[2]], x.get_color())
 #############        
-        
 
+def get_rotation_matrix(degrees, axis):
+    if axis.lower() == "z":
+        return ((cos(degrees*pi/180), -sin(degrees*pi/180), 0),
+          (sin(degrees*pi/180), cos(degrees*pi/180), 0),
+          (0, 0, 1))
+    elif axis.lower() == "y":
+        return ((cos(degrees*pi/180), 0, sin(degrees*pi/180)),
+          (0, 1, 0),
+          (-sin(degrees*pi/180), 0, cos(degrees*pi/180)))
+    elif axis.lower() == "x":
+        return ((1, 0, 0),
+          (0, cos(degrees*pi/180), -sin(degrees*pi/180)),
+          (0, sin(degrees*pi/180), cos(degrees*pi/180)))
+#############
 
 d=0.5
-lrotatez=((cos(d*pi/180), -sin(d*pi/180), 0),
-          (sin(d*pi/180), cos(d*pi/180), 0),
-          (0, 0, 1))
+lrotatez=get_rotation_matrix(d, "z")
 
-lrotatex=((1, 0, 0),
-          (0, cos(d*pi/180), -sin(d*pi/180)),
-          (0, sin(d*pi/180), cos(d*pi/180)))
+lrotatex=get_rotation_matrix(d, "x")
 
-lrotatey=((cos(d*pi/180), 0, sin(d*pi/180)),
-          (0, 1, 0),
-          (-sin(d*pi/180), 0, cos(d*pi/180)))
+lrotatey=get_rotation_matrix(d, "y")
 
 rotatey=Matrix(lrotatey)
 
@@ -319,11 +338,10 @@ rotatez=Matrix(lrotatez)
 
 rotatex=Matrix(lrotatex)
 
-lshrink=((0.999, 0, 0),
-         (0, 0.999, 0),
-         (0, 0, 0.999))
 
-shrink=Matrix(lshrink)
+draw(points)
+draw_lines(lines)
+draw_faces(planes)
 
 delay=0.001
 while True:
@@ -337,12 +355,14 @@ while True:
 
     ## Transformations in loop
     for i, x in enumerate(points):
-        p1=rotatey.product(x)
+        p1=rotatez.product(x)
         temp=Vector(p1)
-        p2=rotatez.product(temp)
+        p2=rotatey.product(temp)
         temp=Vector(p2)
-        p3=shrink.product(temp)
+        p3=rotatex.product(temp)
         x.set_v(p3)
+
+    
 
     draw(points)
     draw_lines(lines)
@@ -351,5 +371,3 @@ while True:
     tk.update_idletasks()
     sleep(delay)
     canvas.delete("all")
-    
-    
