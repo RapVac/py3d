@@ -45,6 +45,9 @@ class Canvas:
     def draw_line(self, x1, y1, x2, y2):
         canvas.create_line(self.cx(x1), self.cy(y1), self.cx(x2), self.cy(y2))
 
+    def draw_pixel(self, x, y, color):
+        canvas.create_rectangle(self.cx(x), self.cy(y), self.cx(x+1), self.cy(y+1), fill=color, outline="")
+
     
 
 class Vector:
@@ -86,26 +89,23 @@ class Vector:
     def subtract(self, v1):
         if type(v1) != type(self):
             raise TypeError("Argument must be of type `Vector\'")
-
-        # Unpacks
         v1=v1.get_v()
         v2=self.get_v()
         out=[]
         for i, x in enumerate(v1):
             out.append(v2[i]-x)
         return tuple(out)
-
     def add(self, v1):
         if type(v1) != type(self):
             raise TypeError("Argument must be of type `Vector\'")
-
-        # Unpacks
         v1=v1.get_v()
         v2=self.get_v()
         out=[]
         for i, x in enumerate(v1):
             out.append(v2[i]+x)
         return tuple(out)
+    def invert(self):
+        return [-1*v for v in self.v]
         
     
     def dot_product(self, v1):
@@ -133,9 +133,6 @@ class Vector:
         ## a1*b2 - b1*a2
         out=( a[1]*b[2] - a[2]*b[1], a[2]*b[0] - b[2]*a[0], a[0]*b[1] - b[0]*a[1])
         return Vector(out)
-
-        
-
 
 class Line:
     def __init__(self, point_1: Vector, point_2: Vector):
@@ -167,6 +164,9 @@ class Plane:
         self.color=color
     def get_color(self):
         return self.color
+    def set_color(self, new_color):
+        self.color=new_color
+    
     def get_p1(self):
         return self.p1
     def get_p2(self):
@@ -203,7 +203,36 @@ class Matrix:
     def project(self, v: Vector):
         p=self.product(Vector(v.get_abs()))
         return v.combine_sign(p)
- 
+
+class Ray_Source:
+    def __init__(self, origin: Vector):
+        self.o=origin
+
+
+    ## I cannot claim to have done the linear algebra myself.
+    ## https://en.wikipedia.org/wiki/Line%E2%80%93plane_intersection
+    ## Convenient solutions were acquired here.
+    def is_in_plane(self, ray, plane):
+        if isinstance(ray, Vector) != True:
+            raise TypeError("`ray\' (arg 1) must be of type `Vector\'")
+        elif isinstance(plane, Plane) != True:
+            raise TypeError("`plane\' (arg 2) must be of type `Plane\'")
+
+        p0=plane.get_p1()
+        p01=Vector(plane.get_p2().subtract(p0))
+        p02=Vector(plane.get_p3().subtract(p0))
+        denom=Vector(ray.invert()).dot_product( plane.get_normal() )
+
+        u = p02.cross_product( Vector(ray.invert()) ).dot_product( Vector(self.o.subtract( p0 )) )/denom
+        
+        v = Vector( ray.invert() ).cross_product( p01 ).dot_product( Vector(self.o.subtract( p0 )) )/denom
+
+        if (u+v)<=1 and 0<=v<=1 and 0<=u<=1:
+            return True
+        else:
+            return False
+
+
 s=0.05
 c=Canvas(canvas)
 ## DOCUMENTING VIEW ORIENTATION!
@@ -247,22 +276,22 @@ t12=Line(v6, v2)
 
 p1=Plane(v4, v2, v3, "red")
 p2=Plane(v7, v5, v8, "green")
-p3=Plane(v1, v3, v2, "red")
-p4=Plane(v6, v8, v5, "green")
+p3=Plane(v1, v3, v2, "pink")
+p4=Plane(v6, v8, v5, "blue")
 
 p5=Plane(v8, v6, v4, "cyan")
-p6=Plane(v2, v4, v6, "cyan")
+p6=Plane(v2, v4, v6, "magenta")
 p7=Plane(v3, v1, v7, "purple")
-p8=Plane(v5, v7, v1, "purple")
+p8=Plane(v5, v7, v1, "yellow")
 
-p9=Plane(v5, v1, v6, "pink")
-p10=Plane(v2, v6, v1, "pink")
+p9=Plane(v5, v1, v6, "white")
+p10=Plane(v2, v6, v1, "black")
 p11=Plane(v3, v7, v4, "brown")
-p12=Plane(v8, v4, v7, "brown")
+p12=Plane(v8, v4, v7, "gray")
 
-points2=[v1, v2, v3, v4, v5, v6, v7, v8]
-lines2=[t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12]
-planes2=[p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12]
+points=[v1, v2, v3, v4, v5, v6, v7, v8]
+lines=[t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12]
+planes=[p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12]
 
 ## Tetrahedron
 n=0
@@ -283,32 +312,41 @@ q2=Plane(w1, w4, w2, "magenta")
 q3=Plane(w4, w3, w2, "yellow")
 q4=Plane(w2, w3, w1, "black")
 
-points=[w1, w2, w3, w4]
-lines=[u1, u2, u3, u4, u5, u6]
-planes=[q1, q2, q3, q4]
+points2=[w1, w2, w3, w4]
+lines2=[u1, u2, u3, u4, u5, u6]
+planes2=[q1, q2, q3, q4]
 
 ## This block generally renders out the points
 def draw(lrender):
     for x in lrender:
         p1=project.project(x)
         c.draw_point(p1[1], p1[2])
-#############
+
 ## This block renders out lines
 def draw_lines(llines):
     for x in llines:
         p1=project.project(x.get_start())
         p2=project.project(x.get_end())
         c.draw_line( p1[1], p1[2], p2[1], p2[2] )
-#############
+
+## Backface culling; should be done before rendering and depth checks
+def backfaces(lfaces):
+    visible=[]
+    for x in lfaces:
+        if x.get_normal().dot_product(vCamera) >= 0:
+            visible.append(x)
+    return visible
+
 ## This function renders planes
 def draw_faces(lfaces):
     for x in lfaces:
-        if x.get_normal().dot_product(vCamera) >= 0:
-            p1=project.project(x.get_p1())
-            p2=project.project(x.get_p2())
-            p3=project.project(x.get_p3())
-            c.draw_poly([p1[1], p1[2], p2[1], p2[2], p3[1], p3[2]], x.get_color())
-#############        
+        p1=project.project(x.get_p1())
+        p2=project.project(x.get_p2())
+        p3=project.project(x.get_p3())
+        c.draw_poly([p1[1], p1[2], p2[1], p2[2], p3[1], p3[2]], x.get_color())
+
+
+
 
 def get_rotation_matrix(degrees, axis):
     if axis.lower() == "z":
@@ -323,7 +361,9 @@ def get_rotation_matrix(degrees, axis):
         return ((1, 0, 0),
           (0, cos(degrees*pi/180), -sin(degrees*pi/180)),
           (0, sin(degrees*pi/180), cos(degrees*pi/180)))
-#############
+##
+
+
 
 d=0.5
 lrotatez=get_rotation_matrix(d, "z")
@@ -347,7 +387,7 @@ delay=0.001
 while True:
     draw(points)
     draw_lines(lines)
-    draw_faces(planes)
+    draw_faces(backfaces(planes))
     tk.update()
     tk.update_idletasks()
     sleep(delay)
@@ -355,18 +395,17 @@ while True:
 
     ## Transformations in loop
     for i, x in enumerate(points):
-        p1=rotatez.product(x)
-        temp=Vector(p1)
-        p2=rotatey.product(temp)
-        temp=Vector(p2)
-        p3=rotatex.product(temp)
-        x.set_v(p3)
+        one=rotatez.product(x)
+        temp=Vector(one)
+        two=rotatey.product(temp)
+
+        x.set_v(two)
 
     
 
     draw(points)
     draw_lines(lines)
-    draw_faces(planes)
+    draw_faces(backfaces(planes))
     tk.update()
     tk.update_idletasks()
     sleep(delay)
