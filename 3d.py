@@ -1,6 +1,6 @@
 from tkinter import *
 from math import copysign, sin, cos, pi
-from time import sleep
+from time import sleep, time
 from random import choice
 
 def sign(x):
@@ -104,8 +104,11 @@ class Vector:
         for i, x in enumerate(v1):
             out.append(v2[i]+x)
         return tuple(out)
+    
     def invert(self):
         return [-1*v for v in self.v]
+    def magnitude(self):
+        return ( self.v[0]**2 + self.v[1]**2 + self.v[2]**2 )**0.5
         
     
     def dot_product(self, v1):
@@ -208,6 +211,8 @@ class Ray_Source:
     def __init__(self, origin: Vector):
         self.o=origin
 
+    def set_origin(self, new_o):
+        self.o=new_o
 
     ## I cannot claim to have done the linear algebra myself.
     ## https://en.wikipedia.org/wiki/Line%E2%80%93plane_intersection
@@ -228,12 +233,32 @@ class Ray_Source:
         v = Vector( ray.invert() ).cross_product( p01 ).dot_product( Vector(self.o.subtract( p0 )) )/denom
 
         if (u+v)<=1 and 0<=v<=1 and 0<=u<=1:
-            return True
+            t = p01.cross_product(p02).dot_product( Vector(self.o.subtract(p0)) ) / denom
+            return (t, plane)
         else:
-            return False
+            return (10000000000000, plane)
 
+class Bound_Box:
+    def __init__(self, points):
+        ## List of Vector objects
+        self.points=points
+        self.center = Vector( (sum([points.get_v()[0] for points in points])/len(points),
+                        sum([points.get_v()[1] for points in points])/len(points),
+                        sum([points.get_v()[2] for points in points])/len(points) ) )
 
-s=0.05
+        best=Vector(self.center.subtract(points[0]))
+        for p in points[1:]:
+            if Vector(self.center.subtract(p)).magnitude() > best.magnitude():
+                best=Vector(self.center.subtract(p))
+        self.radius=best
+
+    def get_best(self):
+        return self.radius
+
+    
+        
+
+s=0.003
 c=Canvas(canvas)
 ## DOCUMENTING VIEW ORIENTATION!
 ## viewing zy plane (?), x is depth, disregard as 0
@@ -243,8 +268,8 @@ lproject=((0, 0, 0),
            (-s, 0, 1))
 
 project=Matrix(lproject)
-
 vCamera=Vector((-1, 0, 0))
+r=Ray_Source( Vector( (200, -20, 20) ) )
 
 ## Cube
 v1=Vector((-100, 100, 100))
@@ -276,25 +301,25 @@ t12=Line(v6, v2)
 
 p1=Plane(v4, v2, v3, "red")
 p2=Plane(v7, v5, v8, "green")
-p3=Plane(v1, v3, v2, "pink")
-p4=Plane(v6, v8, v5, "blue")
+p3=Plane(v1, v3, v2, "red")
+p4=Plane(v6, v8, v5, "green")
 
 p5=Plane(v8, v6, v4, "cyan")
-p6=Plane(v2, v4, v6, "magenta")
+p6=Plane(v2, v4, v6, "cyan")
 p7=Plane(v3, v1, v7, "purple")
-p8=Plane(v5, v7, v1, "yellow")
+p8=Plane(v5, v7, v1, "purple")
 
 p9=Plane(v5, v1, v6, "white")
-p10=Plane(v2, v6, v1, "black")
+p10=Plane(v2, v6, v1, "white")
 p11=Plane(v3, v7, v4, "brown")
-p12=Plane(v8, v4, v7, "gray")
+p12=Plane(v8, v4, v7, "brown")
 
 points=[v1, v2, v3, v4, v5, v6, v7, v8]
 lines=[t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12]
 planes=[p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12]
 
 ## Tetrahedron
-n=0
+n=100
 w1=Vector((0,0+n,0))
 w2=Vector((50,0+n,50))
 w3=Vector((0, 50+n, 50))
@@ -315,6 +340,14 @@ q4=Plane(w2, w3, w1, "black")
 points2=[w1, w2, w3, w4]
 lines2=[u1, u2, u3, u4, u5, u6]
 planes2=[q1, q2, q3, q4]
+
+planes+=planes2
+lines+=lines2
+points+=points2
+
+## !!
+b=Bound_Box(points)
+
 
 ## This block generally renders out the points
 def draw(lrender):
@@ -345,14 +378,34 @@ def draw_faces(lfaces):
         p3=project.project(x.get_p3())
         c.draw_poly([p1[1], p1[2], p2[1], p2[2], p3[1], p3[2]], x.get_color())
 
+## This does the same as the previous function, but implements ray tracing
+def draw_faces_2(lfaces):
 
+    for y in range(int(-size/2), int(size/2)):
+
+        for x in range(int(-size/2), int(size/2)):
+            ## NOT WORKING!!
+            ## Hard-code bounding box conditions here
+            if Vector(b.get_best().subtract( Vector((500, x, y)) )).cross_product(vCamera).magnitude() / Vector( (500, x, y) ).magnitude() < b.get_best().magnitude():
+
+                l={}
+                for f in lfaces:
+                    r.set_origin( Vector( (500, x, y) ) )
+                    res=r.is_in_plane(vCamera, f)
+                    l[res[0]] = res[1]
+
+                mn = min(l.keys())
+                if mn != 10000000000000:
+                    c.draw_pixel(x, y, l[mn].get_color() )
+                else:
+                    c.draw_pixel(x, y, "black")
 
 
 def get_rotation_matrix(degrees, axis):
     if axis.lower() == "z":
         return ((cos(degrees*pi/180), -sin(degrees*pi/180), 0),
           (sin(degrees*pi/180), cos(degrees*pi/180), 0),
-          (0, 0, 1))
+            (0, 0, 1))
     elif axis.lower() == "y":
         return ((cos(degrees*pi/180), 0, sin(degrees*pi/180)),
           (0, 1, 0),
@@ -362,28 +415,40 @@ def get_rotation_matrix(degrees, axis):
           (0, cos(degrees*pi/180), -sin(degrees*pi/180)),
           (0, sin(degrees*pi/180), cos(degrees*pi/180)))
 ##
+def transform(points, matrix: Matrix):
+    for i, x in enumerate(points):
+        t=matrix.product(x)
+        x.set_v(t)
+    return points
+
+def test():
+    ti=time()
+    canvas.delete("all")
+    draw_faces_2(backfaces(planes))
+    print(time()-ti)
 
 
 
-d=0.5
+d=0.25
+
 lrotatez=get_rotation_matrix(d, "z")
-
+lrotatez90=get_rotation_matrix(-90, "z")
 lrotatex=get_rotation_matrix(d, "x")
-
 lrotatey=get_rotation_matrix(d, "y")
 
 rotatey=Matrix(lrotatey)
-
 rotatez=Matrix(lrotatez)
-
+rotatez90=Matrix(lrotatez90)
 rotatex=Matrix(lrotatex)
 
+points=transform(points, rotatez90)
 
 draw(points)
 draw_lines(lines)
-draw_faces(planes)
+draw_faces(backfaces(planes))
 
 delay=0.001
+
 while True:
     draw(points)
     draw_lines(lines)
@@ -393,15 +458,10 @@ while True:
     sleep(delay)
     canvas.delete("all")
 
-    ## Transformations in loop
-    for i, x in enumerate(points):
-        one=rotatez.product(x)
-        temp=Vector(one)
-        two=rotatey.product(temp)
+    ## Transformations
+    points=transform(points, rotatez)
+    points=transform(points, rotatey)
 
-        x.set_v(two)
-
-    
 
     draw(points)
     draw_lines(lines)
