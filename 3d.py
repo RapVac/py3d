@@ -1,7 +1,6 @@
 from tkinter import *
 from math import copysign, sin, cos, pi
 from time import sleep, time
-from random import choice
 
 def sign(x):
     return int(copysign(1, x))
@@ -48,7 +47,6 @@ class Canvas:
     def draw_pixel(self, x, y, color):
         canvas.create_rectangle(self.cx(x), self.cy(y), self.cx(x+1), self.cy(y+1), fill=color, outline="")
 
-    
 
 class Vector:
     ## 3d vector
@@ -207,6 +205,11 @@ class Matrix:
         p=self.product(Vector(v.get_abs()))
         return v.combine_sign(p)
 
+    def transform(self, points_list):
+        for x in points_list:
+            x.set_v(self.product(x))
+        return points_list
+
 class Ray_Source:
     def __init__(self, origin: Vector):
         self.o=origin
@@ -239,24 +242,82 @@ class Ray_Source:
             return (10000000000000, plane)
 
 class Bound_Box:
-    def __init__(self, points):
+    def __init__(self, points, planes, cam):
         ## List of Vector objects
         self.points=points
+        self.planes=planes
+        self.center=Vector((0,0,0))
+        self.radius=0
+        self.cam=cam
+        
+    def get_radius(self):
+        return self.radius
+
+    def get_center(self):
+        return self.center
+
+    def get_planes(self):
+        return self.planes
+
+    def update(self):
         self.center = Vector( (sum([points.get_v()[0] for points in points])/len(points),
                         sum([points.get_v()[1] for points in points])/len(points),
                         sum([points.get_v()[2] for points in points])/len(points) ) )
-
         best=Vector(self.center.subtract(points[0]))
         for p in points[1:]:
             if Vector(self.center.subtract(p)).magnitude() > best.magnitude():
                 best=Vector(self.center.subtract(p))
         self.radius=best
 
-    def get_best(self):
-        return self.radius
+    def is_hit(self, ray: Vector):
+        return Vector(self.center.subtract( ray )).cross_product(self.cam).magnitude() /  self.cam.magnitude() < self.radius.magnitude()
 
-    
+class Obj_Reader:
+    def __init__(self, filename):
+        self.loc="/".join(__file__.split("/")[:-1])+"/"
+        self.file=self.loc+filename
+
+    def set_file(self, new_file):
+        self.file=self.loc+new_file
+
+    ## Arbitrarily decided format:
+    ## points lines planes
+    ## x y z
+    ## x y z...
+    ## line_num1 line_num2
+    ## line_num1 line_num2 line_num3
+    def read(self):
+        vectors=[]
+        lines=[]
+        planes=[]
         
+        with open(self.file, "r") as f:
+            f=f.read().split(sep="\n")
+            for i, x in enumerate(f):
+                if x == '' or x[0] == "#":
+                    del f[i]
+            lnum=0
+            
+            while lnum<len(f):
+                line=f[lnum].split(sep=" ")
+                if len(line)<4:
+                    line=[int(line) for line in line]
+                    color=""
+                else:
+                    color=line[-1]
+                    line=[int(line) for line in line[:-1]]
+    
+                if len(line) == 3 and color == "":
+                    vectors.append( Vector( (line[0], line[1], line[2]) ))
+                elif len(line) == 3:
+                    planes.append( Plane(vectors[line[0]-1], vectors[line[1]-1], vectors[line[2]-1], color) )
+                    
+                elif len(line) == 2:
+                    lines.append( Line( vectors[line[0]-1], vectors[line[1]-1]) )
+                lnum+=1
+
+        return vectors, lines, planes
+
 
 s=0.003
 c=Canvas(canvas)
@@ -271,82 +332,29 @@ project=Matrix(lproject)
 vCamera=Vector((-1, 0, 0))
 r=Ray_Source( Vector( (200, -20, 20) ) )
 
-## Cube
-v1=Vector((-100, 100, 100))
-v2=Vector((-100, -100, 100))
-v3=Vector((-100, 100, -100))
-v4=Vector((-100, -100, -100))
-
-v5=Vector((100, 100, 100))
-v6=Vector((100, -100, 100))
-v7=Vector((100, 100, -100))
-v8=Vector((100, -100, -100))
+read=Obj_Reader("cube.vec")
+r=read.read()
+points=r[0]
+lines=r[1]
+planes=r[2]
 
 
-t1=Line(v7, v8)
-t2=Line(v7, v5)
-t3=Line(v6, v5)
-t4=Line(v8, v6)
-
-t5=Line(v4, v3)
-t6=Line(v4, v2)
-t7=Line(v2, v1)
-t8=Line(v3, v1)
-
-t9=Line(v3, v7)
-t10=Line(v5, v1)
-t11=Line(v8, v4)
-t12=Line(v6, v2)
+read.set_file("tetrahedron.vec")
+r=read.read()
+points=r[0]
+lines=r[1]
+planes=r[2]
 
 
-p1=Plane(v4, v2, v3, "red")
-p2=Plane(v7, v5, v8, "green")
-p3=Plane(v1, v3, v2, "red")
-p4=Plane(v6, v8, v5, "green")
+##bTetr=Bound_Box(points2, planes2, vCamera)
+##bCube=Bound_Box(points, planes, vCamera)
+##bCube.update()
+##bTetr.update()
 
-p5=Plane(v8, v6, v4, "cyan")
-p6=Plane(v2, v4, v6, "cyan")
-p7=Plane(v3, v1, v7, "purple")
-p8=Plane(v5, v7, v1, "purple")
 
-p9=Plane(v5, v1, v6, "white")
-p10=Plane(v2, v6, v1, "white")
-p11=Plane(v3, v7, v4, "brown")
-p12=Plane(v8, v4, v7, "brown")
-
-points=[v1, v2, v3, v4, v5, v6, v7, v8]
-lines=[t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12]
-planes=[p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12]
-
-## Tetrahedron
-n=100
-w1=Vector((0,0+n,0))
-w2=Vector((50,0+n,50))
-w3=Vector((0, 50+n, 50))
-w4=Vector((50,50+n,0))
-
-u1=Line(w1, w2)
-u2=Line(w2, w3)
-u3=Line(w3, w4)
-u4=Line(w1, w4)
-u5=Line(w1, w3)
-u6=Line(w2, w4)
-
-q1=Plane(w1, w3, w4, "cyan")
-q2=Plane(w1, w4, w2, "magenta")
-q3=Plane(w4, w3, w2, "yellow")
-q4=Plane(w2, w3, w1, "black")
-
-points2=[w1, w2, w3, w4]
-lines2=[u1, u2, u3, u4, u5, u6]
-planes2=[q1, q2, q3, q4]
-
-planes+=planes2
-lines+=lines2
-points+=points2
-
-## !!
-b=Bound_Box(points)
+## !! Bound boxes for ray tracing
+b=Bound_Box(points, planes, vCamera)
+b.update()
 
 
 ## This block generally renders out the points
@@ -380,13 +388,48 @@ def draw_faces(lfaces):
 
 ## This does the same as the previous function, but implements ray tracing
 def draw_faces_2(lfaces):
+  
+    for y in range(int(-size/2), int(size/2)):
+
+        for x in range(int(-size/2), int(size/2)):
+            ## Hard-code bounding box conditions here
+            current_ray=Vector( (500, x, y) )
+            if b.is_hit( current_ray ):
+                l={}
+
+                if bTetr.is_hit( current_ray ):
+                    
+                    for f in bTetr.get_planes():
+                        r.set_origin( Vector( (500, x, y) ) )
+                        res=r.is_in_plane(vCamera, f)
+                        l[res[0]] = res[1]
+                    
+                    mn = min(l.keys())
+                    if mn != 10000000000000:
+                        c.draw_pixel(x, y, l[mn].get_color() )
+                        continue
+                    
+                if bCube.is_hit( current_ray ):
+                    
+                    for f in bCube.get_planes():
+                        r.set_origin( Vector( (500, x, y) ) )
+                        res=r.is_in_plane(vCamera, f)
+                        l[res[0]] = res[1]
+                    
+                    mn = min(l.keys())
+                    if mn != 10000000000000:
+                        c.draw_pixel(x, y, l[mn].get_color() )
+                        continue
+                    
+            c.draw_pixel(x, y, "black")
+
+def draw_faces_3(lfaces):
 
     for y in range(int(-size/2), int(size/2)):
 
         for x in range(int(-size/2), int(size/2)):
-            ## NOT WORKING!!
             ## Hard-code bounding box conditions here
-            if Vector(b.get_best().subtract( Vector((500, x, y)) )).cross_product(vCamera).magnitude() / Vector( (500, x, y) ).magnitude() < b.get_best().magnitude():
+            if b.is_hit(Vector( (500, x, y) )):
 
                 l={}
                 for f in lfaces:
@@ -397,9 +440,8 @@ def draw_faces_2(lfaces):
                 mn = min(l.keys())
                 if mn != 10000000000000:
                     c.draw_pixel(x, y, l[mn].get_color() )
-                else:
-                    c.draw_pixel(x, y, "black")
-
+                    continue
+            c.draw_pixel(x, y, "black")
 
 def get_rotation_matrix(degrees, axis):
     if axis.lower() == "z":
@@ -415,11 +457,6 @@ def get_rotation_matrix(degrees, axis):
           (0, cos(degrees*pi/180), -sin(degrees*pi/180)),
           (0, sin(degrees*pi/180), cos(degrees*pi/180)))
 ##
-def transform(points, matrix: Matrix):
-    for i, x in enumerate(points):
-        t=matrix.product(x)
-        x.set_v(t)
-    return points
 
 def test():
     ti=time()
@@ -428,24 +465,22 @@ def test():
     print(time()-ti)
 
 
-
 d=0.25
 
 lrotatez=get_rotation_matrix(d, "z")
 lrotatez90=get_rotation_matrix(-90, "z")
+lrotatey45=get_rotation_matrix(-45, "y")
+
 lrotatex=get_rotation_matrix(d, "x")
 lrotatey=get_rotation_matrix(d, "y")
 
 rotatey=Matrix(lrotatey)
+rotatey45=Matrix(lrotatey45)
 rotatez=Matrix(lrotatez)
 rotatez90=Matrix(lrotatez90)
 rotatex=Matrix(lrotatex)
 
-points=transform(points, rotatez90)
-
-draw(points)
-draw_lines(lines)
-draw_faces(backfaces(planes))
+points=rotatez90.transform(points)
 
 delay=0.001
 
@@ -453,19 +488,23 @@ while True:
     draw(points)
     draw_lines(lines)
     draw_faces(backfaces(planes))
+    
     tk.update()
     tk.update_idletasks()
     sleep(delay)
     canvas.delete("all")
 
     ## Transformations
-    points=transform(points, rotatez)
-    points=transform(points, rotatey)
+    points=rotatez.transform(points)
+    points=rotatey.transform(points)
+    
+    b.update()
 
 
     draw(points)
     draw_lines(lines)
     draw_faces(backfaces(planes))
+    
     tk.update()
     tk.update_idletasks()
     sleep(delay)
