@@ -297,7 +297,6 @@ class Obj_Reader:
                 if x == '' or x[0] == "#":
                     del f[i]
             lnum=0
-            
             while lnum<len(f):
                 line=f[lnum].split(sep=" ")
                 if len(line)<4:
@@ -333,17 +332,16 @@ vCamera=Vector((-1, 0, 0))
 r=Ray_Source( Vector( (200, -20, 20) ) )
 
 read=Obj_Reader("cube.vec")
-r=read.read()
-points=r[0]
-lines=r[1]
-planes=r[2]
-
+obj=read.read()
+points=obj[0]
+lines=obj[1]
+planes=obj[2]
 
 read.set_file("tetrahedron.vec")
-r=read.read()
-points=r[0]
-lines=r[1]
-planes=r[2]
+obj=read.read()
+points+=obj[0]
+lines+=obj[1]
+planes+=obj[2]
 
 
 ##bTetr=Bound_Box(points2, planes2, vCamera)
@@ -397,29 +395,17 @@ def draw_faces_2(lfaces):
             if b.is_hit( current_ray ):
                 l={}
 
-                if bTetr.is_hit( current_ray ):
+                ##if BOUND_BOX.is_hit( current_ray ):
                     
-                    for f in bTetr.get_planes():
-                        r.set_origin( Vector( (500, x, y) ) )
-                        res=r.is_in_plane(vCamera, f)
-                        l[res[0]] = res[1]
+                for f in b.get_planes():
+                    r.set_origin( Vector( (500, x, y) ) )
+                    res=r.is_in_plane(vCamera, f)
+                    l[res[0]] = res[1]
                     
-                    mn = min(l.keys())
-                    if mn != 10000000000000:
-                        c.draw_pixel(x, y, l[mn].get_color() )
-                        continue
-                    
-                if bCube.is_hit( current_ray ):
-                    
-                    for f in bCube.get_planes():
-                        r.set_origin( Vector( (500, x, y) ) )
-                        res=r.is_in_plane(vCamera, f)
-                        l[res[0]] = res[1]
-                    
-                    mn = min(l.keys())
-                    if mn != 10000000000000:
-                        c.draw_pixel(x, y, l[mn].get_color() )
-                        continue
+                mn = min(l.keys())
+                if mn != 10000000000000:
+                    c.draw_pixel(x, y, l[mn].get_color() )
+                    continue
                     
             c.draw_pixel(x, y, "black")
 
