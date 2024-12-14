@@ -220,7 +220,7 @@ class Ray_Source:
     ## I cannot claim to have done the linear algebra myself.
     ## https://en.wikipedia.org/wiki/Line%E2%80%93plane_intersection
     ## Convenient solutions were acquired here.
-    def is_in_plane(self, ray, plane):
+    def is_in_plane(self, ray: Vector, plane: Plane):
         if isinstance(ray, Vector) != True:
             raise TypeError("`ray\' (arg 1) must be of type `Vector\'")
         elif isinstance(plane, Plane) != True:
@@ -230,13 +230,14 @@ class Ray_Source:
         p01=Vector(plane.get_p2().subtract(p0))
         p02=Vector(plane.get_p3().subtract(p0))
         denom=Vector(ray.invert()).dot_product( plane.get_normal() )
+        sub=Vector(self.o.subtract( p0 ))
 
-        u = p02.cross_product( Vector(ray.invert()) ).dot_product( Vector(self.o.subtract( p0 )) )/denom
+        u = p02.cross_product( Vector(ray.invert()) ).dot_product( sub )/denom
         
-        v = Vector( ray.invert() ).cross_product( p01 ).dot_product( Vector(self.o.subtract( p0 )) )/denom
+        v = Vector( ray.invert() ).cross_product( p01 ).dot_product( sub )/denom
 
         if (u+v)<=1 and 0<=v<=1 and 0<=u<=1:
-            t = p01.cross_product(p02).dot_product( Vector(self.o.subtract(p0)) ) / denom
+            t = p01.cross_product(p02).dot_product( sub ) / denom
             return (t, plane)
         else:
             return (10000000000000, plane)
@@ -339,16 +340,19 @@ planes=obj[2]
 
 read.set_file("tetrahedron.vec")
 obj=read.read()
-points+=obj[0]
-lines+=obj[1]
-planes+=obj[2]
+points2=obj[0]
+lines2=obj[1]
+planes2=obj[2]
 
 
-##bTetr=Bound_Box(points2, planes2, vCamera)
-##bCube=Bound_Box(points, planes, vCamera)
-##bCube.update()
-##bTetr.update()
+bTetr=Bound_Box(points2, planes2, vCamera)
+bCube=Bound_Box(points, planes, vCamera)
+bCube.update()
+bTetr.update()
 
+points+=points2
+lines+=lines2
+planes+=planes2
 
 ## !! Bound boxes for ray tracing
 b=Bound_Box(points, planes, vCamera)
@@ -386,47 +390,25 @@ def draw_faces(lfaces):
 
 ## This does the same as the previous function, but implements ray tracing
 def draw_faces_2(lfaces):
-  
     for y in range(int(-size/2), int(size/2)):
 
         for x in range(int(-size/2), int(size/2)):
             ## Hard-code bounding box conditions here
-            current_ray=Vector( (500, x, y) )
+            current_ray=Vector( (-500, x, y) )
             if b.is_hit( current_ray ):
                 l={}
-
                 ##if BOUND_BOX.is_hit( current_ray ):
-                    
                 for f in b.get_planes():
-                    r.set_origin( Vector( (500, x, y) ) )
-                    res=r.is_in_plane(vCamera, f)
-                    l[res[0]] = res[1]
+                    if f in lfaces:
+                        r.set_origin( current_ray )
+                        res=r.is_in_plane(vCamera, f)
+                        l[res[0]] = res[1]
                     
                 mn = min(l.keys())
                 if mn != 10000000000000:
                     c.draw_pixel(x, y, l[mn].get_color() )
                     continue
-                    
-            c.draw_pixel(x, y, "black")
-
-def draw_faces_3(lfaces):
-
-    for y in range(int(-size/2), int(size/2)):
-
-        for x in range(int(-size/2), int(size/2)):
-            ## Hard-code bounding box conditions here
-            if b.is_hit(Vector( (500, x, y) )):
-
-                l={}
-                for f in lfaces:
-                    r.set_origin( Vector( (500, x, y) ) )
-                    res=r.is_in_plane(vCamera, f)
-                    l[res[0]] = res[1]
-
-                mn = min(l.keys())
-                if mn != 10000000000000:
-                    c.draw_pixel(x, y, l[mn].get_color() )
-                    continue
+                
             c.draw_pixel(x, y, "black")
 
 def get_rotation_matrix(degrees, axis):
@@ -469,6 +451,7 @@ rotatex=Matrix(lrotatex)
 points=rotatez90.transform(points)
 
 delay=0.001
+
 
 while True:
     draw(points)
