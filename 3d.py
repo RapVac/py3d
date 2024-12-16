@@ -216,6 +216,8 @@ class Ray_Source:
 
     def set_origin(self, new_o):
         self.o=new_o
+    def get_origin(self):
+        return self.o
 
     ## I cannot claim to have done the linear algebra myself.
     ## https://en.wikipedia.org/wiki/Line%E2%80%93plane_intersection
@@ -331,6 +333,7 @@ lproject=((0, 0, 0),
 project=Matrix(lproject)
 vCamera=Vector((-1, 0, 0))
 r=Ray_Source( Vector( (200, -20, 20) ) )
+light=Ray_Source( Vector( (500, 200, 200) ) )
 
 read=Obj_Reader("cube.vec")
 obj=read.read()
@@ -411,6 +414,29 @@ def draw_faces_2(lfaces):
                 
             c.draw_pixel(x, y, "black")
 
+def draw_light(lfaces, resolution):
+    for t in range(0, resolution):
+        theta=360*t/resolution
+
+        for p in range(0, resolution):
+            phi=360*p/resolution
+            current_ray=Vector( (sin(phi)*cos(theta), sin(phi)*sin(theta), cos(phi)) )
+            l={}
+            
+            for f in lfaces:
+                res=light.is_in_plane(current_ray, f)
+                if res[0]>0:        
+                    l[res[0]] = res[1]
+                    
+            mn = min(l.keys())
+            if mn != 10000000000000:
+                temp=current_ray.get_v()
+                temp=Vector([ mn*temp for temp in temp])
+                temp=project.project(Vector(temp.add(light.get_origin())))
+                
+                c.draw_pixel(temp[1], temp[2], "white")
+            
+
 def get_rotation_matrix(degrees, axis):
     if axis.lower() == "z":
         return ((cos(degrees*pi/180), -sin(degrees*pi/180), 0),
@@ -424,12 +450,19 @@ def get_rotation_matrix(degrees, axis):
         return ((1, 0, 0),
           (0, cos(degrees*pi/180), -sin(degrees*pi/180)),
           (0, sin(degrees*pi/180), cos(degrees*pi/180)))
-##
+
 
 def test():
     ti=time()
     canvas.delete("all")
     draw_faces_2(backfaces(planes))
+    print(time()-ti)
+    
+def test_2():
+    ti=time()
+    canvas.delete("all")
+    draw_faces(backfaces(planes))
+    draw_light(planes, 360*2)
     print(time()-ti)
 
 
