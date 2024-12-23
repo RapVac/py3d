@@ -18,15 +18,15 @@
 5 1
 8 4
 6 2
-4 2 3 red
-7 5 8 green
-1 3 2 red
-6 8 5 green
-8 6 4 cyan
-2 4 6 cyan
-3 1 7 purple
-5 7 1 purple
-5 1 6 orange
-2 6 1 orange
-3 7 4 brown
-8 4 7 brown
+4 2 3 #ff0000
+7 5 8 #00a614
+1 3 2 #ff0000
+6 8 5 #00a614
+8 6 4 #00eeff
+2 4 6 #00eeff
+3 1 7 #6a0080
+5 7 1 #6a0080
+5 1 6 #ffb300
+2 6 1 #ffb300
+3 7 4 #0008ff
+8 4 7 #0008ff
