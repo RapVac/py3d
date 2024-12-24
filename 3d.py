@@ -334,7 +334,7 @@ lproject=((0, 0, 0),
 
 project=Matrix(lproject)
 vCamera=Vector((-1, 0, 0))
-r=Ray_Source( Vector( (200, 300, 300) ) )
+r=Ray_Source( Vector( (300, 0, 300) ) )
 light=Ray_Source( Vector( (500, 0, 0) ) )
 
 
@@ -496,7 +496,6 @@ def draw_faces_2(front_faces, all_faces, other_bounds):
 
                     min_dist=float('inf')
                     min_plane=None
-                    
                     ##if BOUND_BOX.is_hit( current_ray ):
                     for f in box.get_planes():
                         if f in front_faces:
@@ -514,9 +513,9 @@ def draw_faces_2(front_faces, all_faces, other_bounds):
                             c.draw_pixel(x, y,  darken(min_plane.get_color(),  v.magnitude(), 1000 ))
                         else:
                             c.draw_pixel(x, y, normalize(min_plane.get_color(), 0.075))
-                            
                         hit_bounds=True
                         break
+                    
         if not hit_bounds:
             c.draw_pixel(x, y, "black")
 
