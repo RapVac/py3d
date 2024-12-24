@@ -1,13 +1,14 @@
 from tkinter import *
 from math import copysign, sin, cos, pi
 from time import sleep, time
+from multiprocessing import Process, Queue
 
 def sign(x):
     return int(copysign(1, x))
 
 tk=Tk()
 
-size=500
+size=1000
 if size % 2 != 0:
     raise ValueError("Size must be even")
 
@@ -263,11 +264,12 @@ class Bound_Box:
         return self.planes
 
     def update(self):
-        self.center = Vector( (sum([points.get_v()[0] for points in points])/len(points),
-                        sum([points.get_v()[1] for points in points])/len(points),
-                        sum([points.get_v()[2] for points in points])/len(points) ) )
-        best=Vector(self.center.subtract(points[0]))
-        for p in points[1:]:
+        self.center = Vector( (sum([point.get_v()[0] for point in self.points])/len(self.points),
+                        sum([point.get_v()[1] for point in self.points])/len(self.points),
+                        sum([point.get_v()[2] for point in self.points])/len(self.points) ) )
+
+        best=Vector(self.center.subtract(self.points[0]))
+        for p in self.points[1:]:
             if Vector(self.center.subtract(p)).magnitude() > best.magnitude():
                 best=Vector(self.center.subtract(p))
         self.radius=best
@@ -332,29 +334,43 @@ lproject=((0, 0, 0),
 
 project=Matrix(lproject)
 vCamera=Vector((-1, 0, 0))
-r=Ray_Source( Vector( (200, -20, 20) ) )
-light=Ray_Source( Vector( (250, 0, 150) ) )
+r=Ray_Source( Vector( (200, 300, 300) ) )
+light=Ray_Source( Vector( (500, 0, 0) ) )
+
 
 read=Obj_Reader("cube.vec")
 obj=read.read()
-points=obj[0]
-lines=obj[1]
-planes=obj[2]
+points1=obj[0]
+lines1=obj[1]
+planes1=obj[2]
+
+read.set_file("cube2.vec")
+obj=read.read()
+
+points3=obj[0]
+lines3=obj[1]
+planes3=obj[2]
 
 read.set_file("tetrahedron.vec")
 obj=read.read()
+
 points2=obj[0]
 lines2=obj[1]
 planes2=obj[2]
 
 bTetr=Bound_Box(points2, planes2)
-bCube=Bound_Box(points, planes)
+bCube=Bound_Box(points1, planes1)
+bCubeTwo=Bound_Box(points3, planes3)
+
 bCube.update()
 bTetr.update()
+bCubeTwo.update()
 
-points+=points2
-lines+=lines2
-planes+=planes2
+points=points1+points2+points3
+lines=lines1+lines2+lines3
+planes=planes1+planes2+planes3
+
+others=[bTetr, bCube, bCubeTwo]
 
 ## !! Bound boxes for ray tracing
 b=Bound_Box(points, planes)
@@ -389,10 +405,55 @@ def draw_faces(lfaces):
         p3=project.project(x.get_p3())
         c.draw_poly([p1[1], p1[2], p2[1], p2[2], p3[1], p3[2]], x.get_color())
 
-## https://www.desmos.com/calculator/js3nsymnix
+## Precondition: len of array is the same as size**2
+def draw_from_array(array):
+    for i, p in enumerate(array):
+        x=i%size-size/2
+        y=i//size-size/2
+        c.draw_pixel(x, y, p)
+    
+def draw_light(lfaces, resolution):
+    ## center of box - light center
+    lfaces = backfaces(lfaces, Vector( b.get_center().subtract( light.get_origin() ) ) ) 
+    vDir=Vector( b.get_center().subtract(light.get_origin())  )
+    origin_components=light.get_origin().get_v()
+    
+    for t in range(0, resolution):
+        theta=360*t/resolution
+
+        for p in range(0, resolution):
+            phi=360*p/resolution
+            current_ray=Vector( (sin(phi)*cos(theta), sin(phi)*sin(theta), cos(phi)) )
+            
+            if b.is_hit(current_ray, vDir):
+                
+                min_dist=float('inf')
+              ##  min_plane=None
+                
+                for f in b.get_planes():
+                    if f in lfaces:
+                        
+                        res=light.is_in_plane(current_ray, f)
+                        if 0<=res[0]<min_dist:      
+                            min_dist=res[0]
+                            
+    ##                        min_plane=res[1]
+                if min_dist != float('inf'):
+                    current_components=current_ray.get_v()
+                    temp=Vector([ min_dist*x+origin_components[i] for i, x in enumerate(current_components) ])
+                    temp=project.project(temp)
+                    c.draw_pixel(temp[1], temp[2], "white")
+                    continue
+
+####################
+
+## https://www.desmos.com/calculator/x6u6mclzah
+## x*distance_from_light -> intensity changes.
+## Greater x -> dimmer light
 def darken(color_hex, distance_from_light, max_range):
     (r, g, b)=[color_hex[n:n+2] for n in range(1, len(color_hex), 2)]
-    p=1/(distance_from_light/max_range+1)**2
+    
+    p=1/(0.5*distance_from_light/max_range+1)**2
     
     r=format(round(int(r, 16)*p), '02x')
     g=format(round(int(g, 16)*p), '02x')
@@ -417,86 +478,49 @@ def exposed_to_light(source_to_point: Vector, source, lfaces):
 
 ## This does the same as the previous function, but implements ray tracing and lighting
 ## (from a singular point source)
-def draw_faces_2(front_faces, all_faces, lower_bound, upper_bound):
-    pixels=[]
+def draw_faces_2(front_faces, all_faces, other_bounds):
     ## Full canvas is 1 to size**2+1
-    for i in range(int(lower_bound), int(upper_bound)):
+    for i in range(1, size**2+1):
         x=i%size-size/2
         y=i//size-size/2
+        hit_bounds=False
+        
         ## Hard-code bounding box conditions here
-        current_ray=Vector( (-500, x, y) )
-
+        current_ray=Vector( (500, x, y) )
+        r.set_origin( current_ray )
         if b.is_hit( current_ray, vCamera ):
-            min_dist=float('inf')
-            min_plane=None
-            r.set_origin( current_ray )
-
-            ##if BOUND_BOX.is_hit( current_ray ):
-            for f in b.get_planes():
-                if f in front_faces:
-
-                    res=r.is_in_plane(vCamera, f)
-                    if res[0]<min_dist:
-                        min_dist=res[0]
-                        min_plane=res[1]
-
-            if min_dist != float('inf'):
-                
-                v=Vector( Vector( current_ray.add( Vector(vCamera.multiply(min_dist)) ) ).subtract(light.get_origin()))
-                
-                if exposed_to_light(v, light, all_faces):
-                    ##c.draw_pixel(x, y,  darken(min_plane.get_color(),  v.magnitude(), 1000 ))
-                    pixels.append(darken(min_plane.get_color(),  v.magnitude(), 1000 ))
-                else:
-                    ##c.draw_pixel(x, y, normalize(min_plane.get_color(), 0.1))
-                    pixels.append(normalize(min_plane.get_color(), 0.1))
-                continue
             
-        ##c.draw_pixel(x, y, "black")
-        pixels.append("black")
+            for box in other_bounds:
 
-    return pixels
+                if box.is_hit(current_ray, vCamera):
 
-## Precondition: len of array is the same as size**2
-def draw_from_array(array):
-    for i, p in enumerate(array):
-        x=i%size-size/2
-        y=i//size-size/2
-        c.draw_pixel(x, y, p)
+                    min_dist=float('inf')
+                    min_plane=None
+                    
+                    ##if BOUND_BOX.is_hit( current_ray ):
+                    for f in box.get_planes():
+                        if f in front_faces:
 
-def draw_light(lfaces, resolution):
-    ## center of box - light center
-    lfaces = backfaces(lfaces, Vector( b.get_center().subtract( light.get_origin() ) ) ) 
-    vDir=Vector( b.get_center().subtract(light.get_origin())  )
-    origin_components=light.get_origin().get_v()
-    
-    for t in range(0, resolution):
-        theta=360*t/resolution
+                            res=r.is_in_plane(vCamera, f)
+                            if res[0]<min_dist:
+                                min_dist=res[0]
+                                min_plane=res[1]
 
-        for p in range(0, resolution):
-            phi=360*p/resolution
-            current_ray=Vector( (sin(phi)*cos(theta), sin(phi)*sin(theta), cos(phi)) )
-            
-            if b.is_hit(current_ray, vDir):
-                
-                min_dist=float('inf')
-              ##  min_plane=None
-                
-                for f in b.get_planes():
-                    if f in lfaces:
-                        res=light.is_in_plane(current_ray, f)
-                        if 0<=res[0]<min_dist:      
-                            min_dist=res[0]
+                    if min_dist != float('inf'):
+                        
+                        v=Vector( Vector( current_ray.add( Vector(vCamera.multiply(min_dist)) ) ).subtract(light.get_origin()))
+                        
+                        if exposed_to_light(v, light, all_faces):
+                            c.draw_pixel(x, y,  darken(min_plane.get_color(),  v.magnitude(), 1000 ))
+                        else:
+                            c.draw_pixel(x, y, normalize(min_plane.get_color(), 0.075))
                             
-    ##                        min_plane=res[1]
-                if min_dist != float('inf'):
-                    current_components=current_ray.get_v()
-                    temp=Vector([ min_dist*x+origin_components[i] for i, x in enumerate(current_components) ])
-                    temp=project.project(temp)
-                    c.draw_pixel(temp[1], temp[2], "white")
-                    continue
+                        hit_bounds=True
+                        break
+        if not hit_bounds:
+            c.draw_pixel(x, y, "black")
 
-            
+###############
 
 def get_rotation_matrix(degrees, axis):
     if axis.lower() == "z":
@@ -516,10 +540,8 @@ def get_rotation_matrix(degrees, axis):
 def test():
     ti=time()
     canvas.delete("all")
-    draw_from_array(draw_faces_2(backfaces(planes), planes, 1, size**2+1))
+    draw_faces_2(backfaces(planes), planes, others)
     print(time()-ti)
-
-
 
 d=0.25
 
@@ -541,7 +563,7 @@ points=rotatez90.transform(points)
 delay=0.001
 
 i=0
-while i<50:
+while i<90:
     draw(points)
     draw_lines(lines)
     draw_faces(backfaces(planes))
@@ -556,7 +578,9 @@ while i<50:
     points=rotatey.transform(points)
     
     b.update()
-
+    bTetr.update()
+    bCubeTwo.update()
+    bCube.update()
 
     draw(points)
     draw_lines(lines)
@@ -567,3 +591,5 @@ while i<50:
     sleep(delay)
     canvas.delete("all")
     i+=1
+
+test()
