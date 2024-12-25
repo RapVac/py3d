@@ -334,8 +334,8 @@ lproject=((0, 0, 0),
 
 project=Matrix(lproject)
 vCamera=Vector((-1, 0, 0))
-r=Ray_Source( Vector( (300, 0, 300) ) )
-light=Ray_Source( Vector( (500, 0, 0) ) )
+r=Ray_Source( Vector( (300, -100, 300) ) )
+light=Ray_Source( Vector( (500, -100, 200) ) )
 
 
 read=Obj_Reader("cube.vec")
@@ -489,17 +489,16 @@ def draw_faces_2(front_faces, all_faces, other_bounds):
         current_ray=Vector( (500, x, y) )
         r.set_origin( current_ray )
         if b.is_hit( current_ray, vCamera ):
-            
+            min_dist=float('inf')
+            min_plane=None
             for box in other_bounds:
 
                 if box.is_hit(current_ray, vCamera):
 
-                    min_dist=float('inf')
-                    min_plane=None
+                    
                     ##if BOUND_BOX.is_hit( current_ray ):
                     for f in box.get_planes():
                         if f in front_faces:
-
                             res=r.is_in_plane(vCamera, f)
                             if res[0]<min_dist:
                                 min_dist=res[0]
@@ -514,7 +513,6 @@ def draw_faces_2(front_faces, all_faces, other_bounds):
                         else:
                             c.draw_pixel(x, y, normalize(min_plane.get_color(), 0.075))
                         hit_bounds=True
-                        break
                     
         if not hit_bounds:
             c.draw_pixel(x, y, "black")
