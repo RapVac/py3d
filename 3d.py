@@ -2,13 +2,14 @@ from tkinter import *
 from math import copysign, sin, cos, pi
 from time import sleep, time
 from multiprocessing import Process, Queue
+import random
 
 def sign(x):
     return int(copysign(1, x))
 
 tk=Tk()
 
-size=1000
+size=500
 if size % 2 != 0:
     raise ValueError("Size must be even")
 
@@ -86,8 +87,8 @@ class Vector:
     
     ## Calculates self-v1
     def subtract(self, v1):
-        if type(v1) != type(self):
-            raise TypeError("Argument must be of type `Vector\'")
+        #if type(v1) != type(self):
+        #    raise TypeError("Argument must be of type `Vector\'")
         v1=v1.get_v()
         v2=self.get_v()
         out=[]
@@ -95,8 +96,8 @@ class Vector:
             out.append(v2[i]-x)
         return tuple(out)
     def add(self, v1):
-        if type(v1) != type(self):
-            raise TypeError("Argument must be of type `Vector\'")
+        #if type(v1) != type(self):
+        #    raise TypeError("Argument must be of type `Vector\'")
         v1=v1.get_v()
         v2=self.get_v()
         out=[]
@@ -113,8 +114,8 @@ class Vector:
         
     
     def dot_product(self, v1):
-        if type(v1) != type(self):
-            raise TypeError("Argument must be of type `Vector\'")
+        #if type(v1) != type(self):
+        #    raise TypeError("Argument must be of type `Vector\'")
         # Unpacks
         v1=v1.get_v()
         v2=self.get_v()
@@ -125,8 +126,8 @@ class Vector:
         #return out
 
     def cross_product(self, v1):
-        if type(v1) != type(self):
-            raise TypeError("Argument must be of type `Vector\'")
+        #if type(v1) != type(self):
+        #    raise TypeError("Argument must be of type `Vector\'")
         # Unpacks
         a=v1.get_v()
         b=self.get_v()
@@ -251,9 +252,10 @@ class Bound_Box:
         ## List of Vector objects
         self.points=points
         self.planes=planes
-        self.center=Vector((0,0,0))
-        self.radius=0
-        
+        self.min_x=0
+        self.min_y=0
+        self.max_x=0
+        self.max_y=0     
     def get_radius(self):
         return self.radius
 
@@ -263,19 +265,17 @@ class Bound_Box:
     def get_planes(self):
         return self.planes
 
-    def update(self):
-        self.center = Vector( (sum([point.get_v()[0] for point in self.points])/len(self.points),
-                        sum([point.get_v()[1] for point in self.points])/len(self.points),
-                        sum([point.get_v()[2] for point in self.points])/len(self.points) ) )
+    def update(self, projection):
+        projected=[projection.project(points) for points in self.points]
+        y=[projected[2] for projected in projected]
+        x=[projected[1] for projected in projected]
+        self.max_x=max(x)
+        self.max_y=max(y)
+        self.min_x=min(x)
+        self.min_y=min(y)
 
-        best=Vector(self.center.subtract(self.points[0]))
-        for p in self.points[1:]:
-            if Vector(self.center.subtract(p)).magnitude() > best.magnitude():
-                best=Vector(self.center.subtract(p))
-        self.radius=best
-
-    def is_hit(self, ray: Vector, cam: Vector):
-        return Vector(self.center.subtract( ray )).cross_product(cam).magnitude() /  cam.magnitude() < self.radius.magnitude()
+    def is_hit(self, x, y):
+        return (self.min_x<=x<=self.max_x) and (self.min_y<=y<=self.max_y)
 
 class Obj_Reader:
     def __init__(self, filename):
@@ -362,9 +362,9 @@ bTetr=Bound_Box(points2, planes2)
 bCube=Bound_Box(points1, planes1)
 bCubeTwo=Bound_Box(points3, planes3)
 
-bCube.update()
-bTetr.update()
-bCubeTwo.update()
+bCube.update(project)
+bTetr.update(project)
+bCubeTwo.update(project)
 
 points=points1+points2+points3
 lines=lines1+lines2+lines3
@@ -374,7 +374,7 @@ others=[bTetr, bCube, bCubeTwo]
 
 ## !! Bound boxes for ray tracing
 b=Bound_Box(points, planes)
-b.update()
+b.update(project)
 
 ## This block generally renders out the points
 def draw(lrender):
@@ -483,20 +483,16 @@ def draw_faces_2(front_faces, all_faces, other_bounds):
     for i in range(1, size**2+1):
         x=i%size-size/2
         y=i//size-size/2
-        hit_bounds=False
         
         ## Hard-code bounding box conditions here
-        current_ray=Vector( (500, x, y) )
+        current_ray=Vector( (-1, x, y) )
         r.set_origin( current_ray )
-        if b.is_hit( current_ray, vCamera ):
+        
+        if b.is_hit(x, y):
             min_dist=float('inf')
             min_plane=None
             for box in other_bounds:
-
-                if box.is_hit(current_ray, vCamera):
-
-                    
-                    ##if BOUND_BOX.is_hit( current_ray ):
+                if box.is_hit(x, y):
                     for f in box.get_planes():
                         if f in front_faces:
                             res=r.is_in_plane(vCamera, f)
@@ -504,18 +500,17 @@ def draw_faces_2(front_faces, all_faces, other_bounds):
                                 min_dist=res[0]
                                 min_plane=res[1]
 
-                    if min_dist != float('inf'):
-                        
-                        v=Vector( Vector( current_ray.add( Vector(vCamera.multiply(min_dist)) ) ).subtract(light.get_origin()))
-                        
-                        if exposed_to_light(v, light, all_faces):
-                            c.draw_pixel(x, y,  darken(min_plane.get_color(),  v.magnitude(), 1000 ))
-                        else:
-                            c.draw_pixel(x, y, normalize(min_plane.get_color(), 0.075))
-                        hit_bounds=True
-                    
-        if not hit_bounds:
-            c.draw_pixel(x, y, "black")
+            if min_dist != float('inf'):
+                
+                v=Vector( Vector( current_ray.add( Vector(vCamera.multiply(min_dist)) ) ).subtract(light.get_origin()))
+                
+                if exposed_to_light(v, light, all_faces):
+                    c.draw_pixel(x, y,  darken(min_plane.get_color(),  v.magnitude(), 750 ))
+                else:
+                    c.draw_pixel(x, y, normalize(min_plane.get_color(), 0.075))
+                continue
+
+        c.draw_pixel(x, y, "black")
 
 ###############
 
@@ -574,10 +569,10 @@ while i<90:
     points=rotatez.transform(points)
     points=rotatey.transform(points)
     
-    b.update()
-    bTetr.update()
-    bCubeTwo.update()
-    bCube.update()
+    b.update(project)
+    bTetr.update(project)
+    bCubeTwo.update(project)
+    bCube.update(project)
 
     draw(points)
     draw_lines(lines)
