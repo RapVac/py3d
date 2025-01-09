@@ -335,7 +335,7 @@ lproject=((0, 0, 0),
 project=Matrix(lproject)
 vCamera=Vector((-1, 0, 0))
 r=Ray_Source( Vector( (300, -100, 300) ) )
-light=Ray_Source( Vector( (500, -100, 200) ) )
+light=Ray_Source( Vector( (400, -100, 200) ) )
 
 
 read=Obj_Reader("cube.vec")
@@ -468,7 +468,10 @@ def normalize(color_hex, value):
     b=format(round(b*factor), '02x')
     return "#"+r+g+b
 
-def exposed_to_light(source_to_point: Vector, source, lfaces):
+def exposed_to_light(source_to_point: Vector, source, plane: Plane, lfaces):
+    if plane.get_normal().dot_product(source_to_point) <= 0:
+        return False
+    
     min_dist=source_to_point.magnitude()
     for f in lfaces:
         res=source.is_in_plane( source_to_point, f)
@@ -501,10 +504,10 @@ def draw_faces_2(front_faces, all_faces, other_bounds):
                                 min_plane=res[1]
 
             if min_dist != float('inf'):
-                
+                c.draw_pixel(x, y,  min_plane.get_color())
                 v=Vector( Vector( current_ray.add( Vector(vCamera.multiply(min_dist)) ) ).subtract(light.get_origin()))
                 
-                if exposed_to_light(v, light, all_faces):
+                if exposed_to_light(v, light, min_plane, all_faces):
                     c.draw_pixel(x, y,  darken(min_plane.get_color(),  v.magnitude(), 750 ))
                 else:
                     c.draw_pixel(x, y, normalize(min_plane.get_color(), 0.075))
