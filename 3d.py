@@ -471,11 +471,10 @@ def normalize(color_hex, value):
 def exposed_to_light(source_to_point: Vector, source, plane: Plane, lfaces):
     if plane.get_normal().dot_product(source_to_point) <= 0:
         return False
-    
-    min_dist=source_to_point.magnitude()
+
     for f in lfaces:
         res=source.is_in_plane( source_to_point, f)
-        if 0<=res[0]*min_dist<(min_dist-0.001):
+        if 0<=res[0]<0.999:
             return False
     return True
 
@@ -504,7 +503,7 @@ def draw_faces_2(front_faces, all_faces, other_bounds):
                                 min_plane=res[1]
 
             if min_dist != float('inf'):
-                c.draw_pixel(x, y,  min_plane.get_color())
+                ##c.draw_pixel(x, y,  min_plane.get_color())
                 v=Vector( Vector( current_ray.add( Vector(vCamera.multiply(min_dist)) ) ).subtract(light.get_origin()))
                 
                 if exposed_to_light(v, light, min_plane, all_faces):
@@ -558,7 +557,7 @@ points=rotatez90.transform(points)
 delay=0.001
 
 i=0
-while i<90:
+while i<75:
     draw(points)
     draw_lines(lines)
     draw_faces(backfaces(planes))
